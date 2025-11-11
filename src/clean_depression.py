@@ -2,6 +2,11 @@ import json
 import pytz
 import pandas as pd
 from pathlib import Path
+import re
+import spacy
+
+# Load SpaCy English tokenizer
+nlp = spacy.load("en_core_web_sm")
 
 #Locate source file
 src = Path("Depression.txt")
@@ -35,14 +40,24 @@ df = df[existing].copy()
 if "id" in df.columns:
     df.drop_duplicates(subset="id", inplace=True)
 
-#Clean title (use .str.*)
+# Clean + tokenize title text
 if "title" in df.columns:
-    # Ensure string dtype, keep NaN
+    # Ensure string dtype
     df["title"] = df["title"].astype("string")
-    # Drop NaN titles
     df = df[df["title"].notna()]
-    # Drop blank/whitespace-only titles
     df = df[df["title"].str.strip().ne("")]
+
+    def tokenize_text(text):
+        if not isinstance(text, str):
+            return []
+        text = text.lower()
+        text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+        text = re.sub(r'\d+', '', text)  # Remove numbers
+        doc = nlp(text)
+        return [token.text for token in doc if not token.is_space]
+
+    df["tokens"] = df["title"].apply(tokenize_text)
+    df["clean_text"] = df["tokens"].apply(lambda t: " ".join(t))  # Optional clean string column
 
 #Normalize author placeholders
 if "author" in df.columns:
